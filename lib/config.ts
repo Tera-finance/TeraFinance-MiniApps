@@ -40,26 +40,19 @@ export const API_ENDPOINTS = {
 export const SUPPORTED_CURRENCIES = {
   CRYPTO: [
     "USDC",
-    "USDT",
-    "DAI",
-    "ETH",
+    "IDRX",
+    "CNHT",
+    "EUROC",
+    "JPYC",
+    "MXNT",
   ],
   FIAT: [
     "USD",
-    "EUR",
-    "GBP",
     "IDR",
+    "CNH",
+    "EUR",
     "JPY",
-    "CNY",
     "MXN",
-    "PHP",
-    "INR",
-    "THB",
-    "SGD",
-    "MYR",
-    "AUD",
-    "CAD",
-    "BND",
   ],
 };
 

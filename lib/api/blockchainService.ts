@@ -1,6 +1,14 @@
 import { apiClient } from "./apiClient";
 import { API_ENDPOINTS } from "@/lib/config";
-import type { ApiResponse, BlockchainInfo, EVMToken, TokenBalance } from "@/lib/types";
+import type { ApiResponse, BlockchainInfo, TokenBalance } from "@/lib/types";
+
+interface TokensResponse {
+  tokens: Record<string, string>; // { usdc: "0x...", idrx: "0x..." }
+  contracts: {
+    remittanceSwap: string;
+    multiTokenSwap: string;
+  };
+}
 
 class BlockchainService {
   /**
@@ -13,8 +21,8 @@ class BlockchainService {
   /**
    * Get all available ERC20 tokens on Base Sepolia
    */
-  async getTokens(): Promise<ApiResponse<{ tokens: EVMToken[] }>> {
-    return apiClient.get<{ tokens: EVMToken[] }>(API_ENDPOINTS.getTokens);
+  async getTokens(): Promise<ApiResponse<TokensResponse>> {
+    return apiClient.get<TokensResponse>(API_ENDPOINTS.getTokens);
   }
 
   /**

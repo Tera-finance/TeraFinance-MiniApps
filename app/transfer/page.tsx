@@ -33,9 +33,7 @@ interface TransferData {
 
 interface Token {
   symbol: string;
-  name: string;
   address: string;
-  decimals: number;
 }
 
 export default function TransferPage() {
@@ -69,12 +67,11 @@ export default function TransferPage() {
       try {
         const response = await blockchainService.getTokens();
         if (response.success && response.data) {
-          // Map EVMToken to Token interface
-          const mappedTokens: Token[] = response.data.tokens.map(t => ({
-            symbol: t.tokenSymbol,
-            name: t.tokenName,
-            address: t.contractAddress,
-            decimals: t.decimals,
+          // Convert tokens object to array
+          // { usdc: "0x...", idrx: "0x..." } => [{ symbol: "USDC", address: "0x..." }]
+          const mappedTokens: Token[] = Object.entries(response.data.tokens).map(([symbol, address]) => ({
+            symbol: symbol.toUpperCase(),
+            address: address,
           }));
           setAvailableTokens(mappedTokens);
         }
@@ -188,13 +185,9 @@ export default function TransferPage() {
         throw new Error("Token addresses not found");
       }
 
-      // Get token decimals
-      const tokenIn = availableTokens.find(t => t.symbol === transferData.fromCurrency);
-      const tokenOut = availableTokens.find(t => t.symbol === transferData.toCurrency);
-
-      if (!tokenIn || !tokenOut) {
-        throw new Error("Token configuration not found");
-      }
+      // Use standard 6 decimals for stablecoins
+      const decimalsIn = 6;
+      const decimalsOut = 6;
 
       // Calculate min amount out (2% slippage)
       const minAmountOut = quote ? (quote.recipient.amount * 0.98).toString() : "0";
@@ -206,8 +199,8 @@ export default function TransferPage() {
         amountIn: transferData.amount,
         recipientAddress: walletAddress, // User receives tokens
         minAmountOut,
-        decimalsIn: tokenIn.decimals,
-        decimalsOut: tokenOut.decimals,
+        decimalsIn,
+        decimalsOut,
       });
 
       // Submit transaction to backend for tracking
