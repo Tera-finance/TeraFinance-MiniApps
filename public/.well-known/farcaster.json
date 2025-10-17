@@ -1,0 +1,39 @@
+{
+  "accountAssociation": {
+    "header": "REPLACE_WITH_BASE64_HEADER",
+    "payload": "REPLACE_WITH_BASE64_PAYLOAD",
+    "signature": "REPLACE_WITH_BASE64_SIGNATURE"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Tera Finance",
+    "subtitle": "Cross-Border Payments",
+    "description": "Fast, affordable, and secure cross-border money transfers powered by Base blockchain. Send money globally with low fees and transparent exchange rates.",
+    "iconUrl": "https://YOUR_DOMAIN/icon-1024.png",
+    "splashImageUrl": "https://YOUR_DOMAIN/splash-200.png",
+    "splashBackgroundColor": "#0a0a0a",
+    "homeUrl": "https://YOUR_DOMAIN",
+    "heroImageUrl": "https://YOUR_DOMAIN/hero-1200x630.png",
+    "tagline": "Global transfers made simple",
+    "primaryCategory": "finance",
+    "tags": [
+      "payments",
+      "crypto",
+      "blockchain",
+      "transfers",
+      "finance"
+    ],
+    "screenshotUrls": [
+      "https://YOUR_DOMAIN/screenshot-1.png",
+      "https://YOUR_DOMAIN/screenshot-2.png",
+      "https://YOUR_DOMAIN/screenshot-3.png"
+    ],
+    "webhookUrl": "https://YOUR_DOMAIN/api/farcaster/webhook",
+    "requiredChains": [
+      "eip155:84532"
+    ],
+    "ogTitle": "Tera Finance - Cross-Border Payments",
+    "ogDescription": "Fast, affordable, and secure cross-border money transfers powered by Base blockchain",
+    "ogImageUrl": "https://YOUR_DOMAIN/og-image.png"
+  }
+}

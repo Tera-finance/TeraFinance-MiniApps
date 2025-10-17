@@ -234,13 +234,18 @@ This creates an optimized production build in `.next/`
 npm start
 ```
 
-### 3. Deploy
+### 3. Deploy to Farcaster
 
-Deploy to platforms like:
-- **Vercel** (recommended for Next.js)
-- **Netlify**
-- **Railway**
-- **Custom VPS**
+For detailed instructions on deploying your Mini App to Farcaster, see:
+
+**[FARCASTER_DEPLOYMENT.md](./FARCASTER_DEPLOYMENT.md)**
+
+This guide covers:
+- Creating required assets (icons, screenshots)
+- Setting up the Farcaster manifest
+- Deploying to Vercel
+- Verifying domain ownership
+- Testing in Farcaster
 
 #### Quick Deploy to Vercel
 
@@ -249,8 +254,14 @@ Deploy to platforms like:
 npm i -g vercel
 
 # Deploy
-vercel
+vercel --prod
 ```
+
+Deploy to other platforms:
+- **Vercel** (recommended for Next.js)
+- **Netlify**
+- **Railway**
+- **Custom VPS**
 
 ## Telegram Mini App Integration
 

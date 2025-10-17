@@ -12,6 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001"),
   title: "Tera Finance - Cross-Border Payments",
   description: "Fast, affordable, and secure cross-border money transfers powered by Base blockchain",
   manifest: "/manifest.json",

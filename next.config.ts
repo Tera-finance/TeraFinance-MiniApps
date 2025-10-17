@@ -3,6 +3,26 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: "/home/fabian/Code/web3/Tera-Finance/Tera-MiniApps",
+
+  // Configure headers for Farcaster manifest
+  async headers() {
+    return [
+      {
+        source: '/.well-known/farcaster.json',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
+
   webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
