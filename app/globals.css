@@ -1,0 +1,384 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 240 10% 5%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 10% 5%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 217 91% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 10% 10%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 10% 15%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 210 100% 85%;
+    --accent-foreground: 220 30% 10%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 70% 25%;
+    --input: 217 70% 25%;
+    --ring: 217 91% 35%;
+    --radius: 0.75rem;
+
+    /* Navy Blue + Ice Blue + Silver Theme */
+    --deep-navy: #001F6D;
+    --royal-blue: #003087;
+    --light-blue: #4A7BB8;
+    --ice-blue: #E8F4FF;
+    --pure-white: #FFFFFF;
+    --silver: #C0C0C0;
+    --dark-silver: #808080;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    scroll-padding-top: 80px;
+  }
+
+  body {
+    background: #000000;
+    color: #ffffff;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(0, 51, 173, 0.12) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 215, 0, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(0, 71, 187, 0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: -2;
+    overflow: hidden;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.15), transparent),
+      radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.1), transparent),
+      radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.1), transparent);
+    background-repeat: repeat;
+    background-size: 200px 100px;
+    animation: stars-float 20s linear infinite;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+  }
+
+  @keyframes stars-float {
+    from { transform: translateY(0) translateX(0); }
+    to { transform: translateY(-200px) translateX(-100px); }
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(10, 10, 10, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(74, 123, 184, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    position: relative;
+  }
+
+  .glass-dark {
+    background: rgba(17, 24, 39, 0.4);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(74, 123, 184, 0.2);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 31, 109, 0.2);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(74, 123, 184, 0.5);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(192, 192, 192, 0.5);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(232, 244, 255, 0.5);
+  }
+
+  .glow-effect {
+    box-shadow: 0 0 20px rgba(74, 123, 184, 0.5);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .glow-effect:hover {
+    box-shadow: 0 0 30px rgba(192, 192, 192, 0.6);
+  }
+
+  .text-glow {
+    color: #4A7BB8;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(74, 123, 184, 0.5);
+  }
+
+  .btn-space {
+    background: #003087;
+    border: 1px solid rgba(74, 123, 184, 0.4);
+    border-radius: 12px;
+    padding: 12px 24px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(74, 123, 184, 0.4);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-space:hover {
+    transform: translateY(-2px);
+    background: #4A7BB8;
+    box-shadow: 0 8px 25px rgba(74, 123, 184, 0.6);
+  }
+
+  .gradient-text {
+    color: #4A7BB8;
+  }
+
+  .gradient-text-blue {
+    color: #E8F4FF;
+  }
+
+  .gradient-text-purple {
+    background: linear-gradient(135deg, #0033AD 0%, #FFD700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-cosmic {
+    color: #4A7BB8;
+  }
+
+  @keyframes cosmic-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .section-transition {
+    opacity: 0;
+    transform: translateY(30px);
+    animation: section-fade-in 0.8s ease-out forwards;
+  }
+
+  @keyframes section-fade-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 51, 173, 0.5);
+  }
+
+  .gradient-border {
+    position: relative;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, #0033AD, #FFD700, #0047BB);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .floating-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  @keyframes auto-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-25%); }
+  }
+
+  .animate-auto-scroll {
+    animation: auto-scroll 20s linear infinite;
+  }
+
+  .animate-auto-scroll.group:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.6s ease-out forwards;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 31, 109, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #4A7BB8;
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #003087;
+  }
+
+  ::selection {
+    background-color: rgba(74, 123, 184, 0.4);
+    color: #fff;
+  }
+
+  ::-moz-selection {
+    background-color: rgba(0, 51, 173, 0.4);
+    color: #fff;
+  }
+
+  @keyframes orbit-coin {
+    0% {
+      transform: rotateY(0deg) translateX(200px) rotateY(0deg) translateZ(-100px);
+    }
+    100% {
+      transform: rotateY(360deg) translateX(200px) rotateY(-360deg) translateZ(-100px);
+    }
+  }
+
+  .coin-orbit {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    top: 50%;
+    left: 50%;
+    margin-left: -50px;
+    margin-top: -50px;
+    animation: orbit-coin 12s linear infinite;
+    transform-style: preserve-3d;
+    opacity: 0.4;
+  }
+
+  .coin-orbit-2 {
+    animation-delay: -3s;
+    opacity: 0.38;
+  }
+
+  .coin-orbit-3 {
+    animation-delay: -6s;
+    opacity: 0.35;
+  }
+
+  .coin-orbit-4 {
+    animation-delay: -9s;
+    opacity: 0.32;
+  }
+
+  .coin-3d {
+    width: 100%;
+    height: 100%;
+    background: #C0C0C0;
+    border-radius: 50%;
+    box-shadow:
+      0 0 40px rgba(192, 192, 192, 0.6),
+      0 15px 40px rgba(0, 31, 109, 0.5),
+      inset 0 0 30px rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transform-style: preserve-3d;
+  }
+
+  .coin-symbol {
+    font-size: 56px;
+    font-weight: 900;
+    color: #003087;
+    text-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(0, 48, 135, 0.8);
+    z-index: 2;
+    font-family: Arial, sans-serif;
+    line-height: 1;
+    position: relative;
+  }
+
+  .coin-3d::after {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    border: 3px solid rgba(232, 244, 255, 0.6);
+    box-shadow:
+      inset 0 0 20px rgba(255, 255, 255, 0.2),
+      0 0 15px rgba(192, 192, 192, 0.4);
+    z-index: 0;
+  }
+}
