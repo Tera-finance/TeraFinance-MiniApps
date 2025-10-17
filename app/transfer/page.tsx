@@ -204,16 +204,36 @@ export default function TransferPage() {
         throw new Error("Token addresses not found");
       }
 
-      // Use standard 6 decimals for stablecoins
-      const decimalsIn = 6;
-      const decimalsOut = 6;
+      // Token decimals configuration (from smart contracts)
+      // MockUSDC.sol: 6 decimals
+      // MockIDRX.sol: 18 decimals
+      // MockCNHT.sol: 6 decimals
+      // MockEUROC.sol: 6 decimals
+      // MockJPYC.sol: 18 decimals
+      // MockMXNT.sol: 6 decimals
+      const tokenDecimals: Record<string, number> = {
+        USDC: 6,
+        IDRX: 18,
+        CNHT: 6,
+        EUROC: 6,
+        JPYC: 18,
+        MXNT: 6,
+      };
 
-      // TEMPORARY FIX: Set minAmountOut to 1 to allow swap to complete
-      // TODO: The MultiTokenSwap smart contract needs proper exchange rate configuration
-      // Expected: 1 USDC should return ~16,000 IDRX (1:16000 ratio)
-      // Current: Smart contract may be using 1:1 or different rate
-      // Action needed: Update smart contract with correct price oracle/rates
-      const minAmountOut = "1";
+      const recipientTokenSymbol = mapFiatToToken(transferData.toCurrency);
+      const decimalsIn = tokenDecimals[transferData.fromCurrency] || 6;
+      const decimalsOut = tokenDecimals[recipientTokenSymbol] || 6;
+
+      // Calculate expected output accounting for different decimals
+      // e.g., 1 USDC (10^6) should equal ~15,000 IDRX (15,000 * 10^18)
+      const senderAmount = parseFloat(transferData.amount);
+      const exchangeRate = quote ? quote.exchangeRate : 1;
+
+      // Expected output in human-readable format
+      const expectedOutputHuman = senderAmount * exchangeRate;
+
+      // Use 10% of expected output as minAmountOut (90% slippage for testnet)
+      const minAmountOut = (expectedOutputHuman * 0.1).toFixed(0);
 
       // Execute swap via user's wallet
       const { swapTxHash } = await swapTokens({
