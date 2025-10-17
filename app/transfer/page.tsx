@@ -208,10 +208,10 @@ export default function TransferPage() {
       const decimalsIn = 6;
       const decimalsOut = 6;
 
-      // Calculate min amount out with 5% slippage tolerance (more permissive for testnet)
-      // Use the sender amount * exchange rate to get expected token amount
-      const expectedTokenOut = quote ? parseFloat(transferData.amount) * quote.exchangeRate : 0;
-      const minAmountOut = expectedTokenOut > 0 ? (expectedTokenOut * 0.95).toString() : "0";
+      // For testnet: use minimal minAmountOut (1 token = 0.000001 with 6 decimals)
+      // The fiat exchange rate doesn't reflect on-chain token exchange rates
+      // All stablecoins are pegged ~1:1 on-chain regardless of their fiat values
+      const minAmountOut = "1";
 
       // Execute swap via user's wallet
       const { swapTxHash } = await swapTokens({
