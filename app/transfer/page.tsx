@@ -208,8 +208,10 @@ export default function TransferPage() {
       const decimalsIn = 6;
       const decimalsOut = 6;
 
-      // Calculate min amount out (2% slippage)
-      const minAmountOut = quote ? (quote.recipient.amount * 0.98).toString() : "0";
+      // Calculate min amount out with 5% slippage tolerance (more permissive for testnet)
+      // Use the sender amount * exchange rate to get expected token amount
+      const expectedTokenOut = quote ? parseFloat(transferData.amount) * quote.exchangeRate : 0;
+      const minAmountOut = expectedTokenOut > 0 ? (expectedTokenOut * 0.95).toString() : "0";
 
       // Execute swap via user's wallet
       const { swapTxHash } = await swapTokens({
