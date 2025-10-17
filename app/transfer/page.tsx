@@ -208,9 +208,11 @@ export default function TransferPage() {
       const decimalsIn = 6;
       const decimalsOut = 6;
 
-      // For testnet: use minimal minAmountOut (1 token = 0.000001 with 6 decimals)
-      // The fiat exchange rate doesn't reflect on-chain token exchange rates
-      // All stablecoins are pegged ~1:1 on-chain regardless of their fiat values
+      // TEMPORARY FIX: Set minAmountOut to 1 to allow swap to complete
+      // TODO: The MultiTokenSwap smart contract needs proper exchange rate configuration
+      // Expected: 1 USDC should return ~16,000 IDRX (1:16000 ratio)
+      // Current: Smart contract may be using 1:1 or different rate
+      // Action needed: Update smart contract with correct price oracle/rates
       const minAmountOut = "1";
 
       // Execute swap via user's wallet
