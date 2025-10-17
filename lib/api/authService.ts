@@ -1,6 +1,6 @@
 import { apiClient } from "./apiClient";
 import { API_ENDPOINTS } from "@/lib/config";
-import type { ApiResponse, LoginRequest, LoginResponse, User } from "@/lib/types";
+import type { ApiResponse, LoginResponse, User } from "@/lib/types";
 
 class AuthService {
   async login(whatsappNumber: string, countryCode: string): Promise<ApiResponse<LoginResponse>> {

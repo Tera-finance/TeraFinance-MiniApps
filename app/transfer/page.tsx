@@ -34,7 +34,7 @@ export default function TransferPage() {
 
   const [estimatedFee, setEstimatedFee] = useState<number>(0);
   const [estimatedTotal, setEstimatedTotal] = useState<number>(0);
-  const [exchangeRate, setExchangeRate] = useState<number>(0.92);
+  const [exchangeRate] = useState<number>(0.92);
 
   const handleNext = () => {
     if (step === "amount") setStep("recipient");

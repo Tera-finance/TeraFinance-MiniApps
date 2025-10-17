@@ -35,7 +35,7 @@ export const API_ENDPOINTS = {
     `/api/base/wallet/${address}/token/${tokenAddress}`,
   getTransactionStatus: (txHash: string) =>
     `/api/base/transaction/${txHash}/status`,
-  getTransactionHistory: (address: string) =>
+  getWalletTransactionHistory: (address: string) =>
     `/api/base/wallet/${address}/transactions`,
 };
 

@@ -3,9 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, History, Wallet, ArrowRight } from "lucide-react";
+import { Send, History, Wallet } from "lucide-react";
 import Link from "next/link";
 import { sdk } from "@farcaster/miniapp-sdk";
 
