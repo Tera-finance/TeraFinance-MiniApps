@@ -45,7 +45,7 @@ export default function TransferPage() {
   const [step, setStep] = useState<TransferStep>("amount");
   const [transferData, setTransferData] = useState<TransferData>({
     fromCurrency: "USDC",
-    toCurrency: "IDRX",
+    toCurrency: "IDR",
     amount: "",
     recipientName: "",
     recipientBank: "",
@@ -91,8 +91,8 @@ export default function TransferPage() {
     return token?.address || null;
   };
 
-  // Get available currencies based on payment method
-  const getAvailableCurrencies = () => {
+  // Get available sender currencies based on payment method
+  const getAvailableSenderCurrencies = () => {
     if (transferData.paymentMethod === "WALLET") {
       // For wallet: show crypto tokens from database
       return availableTokens.map(t => t.symbol);
@@ -100,6 +100,11 @@ export default function TransferPage() {
       // For Mastercard: show fiat currencies
       return SUPPORTED_CURRENCIES.FIAT;
     }
+  };
+
+  // Get available recipient currencies (always FIAT)
+  const getAvailableRecipientCurrencies = () => {
+    return SUPPORTED_CURRENCIES.FIAT;
   };
 
   // Fetch quote when amount changes
@@ -171,15 +176,29 @@ export default function TransferPage() {
     }
   };
 
+  // Map fiat currency to token symbol (e.g., IDR -> IDRX, USD -> USDC)
+  const mapFiatToToken = (fiatCurrency: string): string => {
+    const mapping: Record<string, string> = {
+      USD: "USDC",
+      IDR: "IDRX",
+      CNH: "CNHT",
+      EUR: "EUROC",
+      JPY: "JPYC",
+      MXN: "MXNT",
+    };
+    return mapping[fiatCurrency] || fiatCurrency;
+  };
+
   const handleWalletTransfer = async () => {
     if (!user || !isConnected || !walletAddress) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      // Get token addresses
+      // Get token addresses (map fiat to token for recipient)
       const tokenInAddress = getTokenAddress(transferData.fromCurrency);
-      const tokenOutAddress = getTokenAddress(transferData.toCurrency);
+      const recipientToken = mapFiatToToken(transferData.toCurrency);
+      const tokenOutAddress = getTokenAddress(recipientToken);
 
       if (!tokenInAddress || !tokenOutAddress) {
         throw new Error("Token addresses not found");
@@ -316,7 +335,8 @@ export default function TransferPage() {
     return true;
   };
 
-  const availableCurrencies = getAvailableCurrencies();
+  const availableSenderCurrencies = getAvailableSenderCurrencies();
+  const availableRecipientCurrencies = getAvailableRecipientCurrencies();
 
   // Update swap error display
   useEffect(() => {
@@ -409,7 +429,7 @@ export default function TransferPage() {
                         {isLoadingTokens ? (
                           <SelectItem value="loading" disabled>Loading...</SelectItem>
                         ) : (
-                          availableCurrencies.map((curr) => (
+                          availableSenderCurrencies.map((curr) => (
                             <SelectItem key={curr} value={curr}>{curr}</SelectItem>
                           ))
                         )}
@@ -440,13 +460,9 @@ export default function TransferPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {isLoadingTokens ? (
-                          <SelectItem value="loading" disabled>Loading...</SelectItem>
-                        ) : (
-                          availableCurrencies.map((curr) => (
-                            <SelectItem key={curr} value={curr}>{curr}</SelectItem>
-                          ))
-                        )}
+                        {availableRecipientCurrencies.map((curr) => (
+                          <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
