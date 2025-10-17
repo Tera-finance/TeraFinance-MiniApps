@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { parseUnits, formatUnits, Address } from "viem";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits, Address } from "viem";
 import { ERC20_ABI, MULTI_TOKEN_SWAP_ABI } from "../contracts/abis";
 import { CONTRACT_ADDRESSES } from "../config";
 
@@ -36,25 +36,6 @@ export function useTokenSwap() {
     });
 
   /**
-   * Check token allowance
-   */
-  const checkAllowance = async (
-    tokenAddress: string,
-    spenderAddress: string
-  ): Promise<bigint> => {
-    if (!userAddress) throw new Error("Wallet not connected");
-
-    const { data } = useReadContract({
-      address: tokenAddress as Address,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [userAddress, spenderAddress as Address],
-    }) as { data: bigint | undefined };
-
-    return data || BigInt(0);
-  };
-
-  /**
    * Approve token spending
    */
   const approveToken = async (
@@ -76,8 +57,8 @@ export function useTokenSwap() {
 
       setApprovalTxHash(hash);
       return hash;
-    } catch (err: any) {
-      const errorMessage = err.message || "Failed to approve token";
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to approve token";
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -102,20 +83,9 @@ export function useTokenSwap() {
         params.decimalsOut
       );
 
-      // Check allowance first
-      const currentAllowance = await checkAllowance(
-        params.tokenInAddress,
-        CONTRACT_ADDRESSES.MULTI_TOKEN_SWAP
-      );
-
-      // If allowance is insufficient, approve first
-      if (currentAllowance < amountInWei) {
-        console.log("Insufficient allowance, requesting approval...");
-        await approveToken(params.tokenInAddress, amountInWei);
-
-        // Wait for approval to be mined (handled by useWaitForTransactionReceipt)
-        // In a real implementation, you'd want to wait here
-      }
+      // Approve first (always approve for safety)
+      console.log("Approving token...");
+      await approveToken(params.tokenInAddress, amountInWei);
 
       // Execute swap
       const hash = await writeContractAsync({
@@ -133,8 +103,8 @@ export function useTokenSwap() {
 
       setSwapTxHash(hash);
       return hash;
-    } catch (err: any) {
-      const errorMessage = err.message || "Failed to execute swap";
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to execute swap";
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -154,31 +124,16 @@ export function useTokenSwap() {
     setError(null);
 
     try {
-      const amountInWei = parseUnits(params.amountIn, params.decimalsIn);
-
-      // Step 1: Check and approve if needed
-      let approvalHash: string | null = null;
-      const currentAllowance = await checkAllowance(
-        params.tokenInAddress,
-        CONTRACT_ADDRESSES.MULTI_TOKEN_SWAP
-      );
-
-      if (currentAllowance < amountInWei) {
-        console.log("Approving token...");
-        approvalHash = await approveToken(params.tokenInAddress, amountInWei);
-        // Note: In production, you should wait for approval confirmation
-      }
-
-      // Step 2: Execute swap
+      // Execute swap (which includes approval)
       console.log("Executing swap...");
       const swapHash = await executeSwap(params);
 
       return {
-        approvalTxHash: approvalHash,
+        approvalTxHash: approvalTxHash,
         swapTxHash: swapHash,
       };
-    } catch (err: any) {
-      const errorMessage = err.message || "Failed to complete swap";
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to complete swap";
       setError(errorMessage);
       throw new Error(errorMessage);
     }

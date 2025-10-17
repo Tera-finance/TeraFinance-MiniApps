@@ -47,7 +47,7 @@ export default function HistoryPage() {
         } else {
           setError(response.error || "Failed to fetch history");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch transaction history");
       } finally {
         setIsLoading(false);
@@ -68,8 +68,8 @@ export default function HistoryPage() {
         setOffset(offset + limit);
         setHasMore(response.data.transfers.length >= limit);
       }
-    } catch (err) {
-      console.error("Failed to load more:", err);
+    } catch {
+      console.error("Failed to load more");
     } finally {
       setIsLoading(false);
     }

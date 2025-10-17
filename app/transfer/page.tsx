@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { exchangeService } from "@/lib/api/exchangeService";
 import { transferService } from "@/lib/api/transferService";
 import { blockchainService } from "@/lib/api/blockchainService";
-import { SUPPORTED_CURRENCIES, config, TOKEN_ADDRESSES, CONTRACT_ADDRESSES } from "@/lib/config";
+import { SUPPORTED_CURRENCIES, config } from "@/lib/config";
 import type { TransferQuote } from "@/lib/types";
 import { InvoiceDownload } from "@/components/history/InvoiceDownload";
 import { useAccount } from "wagmi";
@@ -116,7 +116,7 @@ export default function TransferPage() {
           } else {
             setError(response.error || "Failed to fetch quote");
           }
-        } catch (err) {
+        } catch {
           setError("Failed to fetch quote");
         } finally {
           setIsLoadingQuote(false);
@@ -160,8 +160,9 @@ export default function TransferPage() {
         // MASTERCARD FLOW: Backend mints and swaps
         await handleMastercardTransfer();
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to process transfer");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to process transfer";
+      setError(errorMessage);
       setStep("confirm");
     }
   };
@@ -224,9 +225,10 @@ export default function TransferPage() {
       } else {
         throw new Error(response.error || "Failed to submit transfer");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Wallet transfer error:", error);
-      throw new Error(error.message || "Failed to execute wallet transfer");
+      const errorMessage = error instanceof Error ? error.message : "Failed to execute wallet transfer";
+      throw new Error(errorMessage);
     }
   };
 
@@ -236,10 +238,6 @@ export default function TransferPage() {
     }
 
     try {
-      // Get token addresses for Mastercard (maps fiat to tokens)
-      const tokenInAddress = getTokenAddress(transferData.fromCurrency);
-      const tokenOutAddress = getTokenAddress(transferData.toCurrency);
-
       const response = await transferService.initiateTransfer({
         whatsappNumber: user.whatsappNumber,
         paymentMethod: transferData.paymentMethod,
@@ -258,9 +256,10 @@ export default function TransferPage() {
       } else {
         throw new Error(response.error || "Failed to initiate transfer");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Mastercard transfer error:", error);
-      throw new Error(error.message || "Failed to process Mastercard transfer");
+      const errorMessage = error instanceof Error ? error.message : "Failed to process Mastercard transfer";
+      throw new Error(errorMessage);
     }
   };
 

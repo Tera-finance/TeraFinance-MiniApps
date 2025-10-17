@@ -10,7 +10,7 @@ interface InvoiceDownloadProps {
   recipientName?: string;
 }
 
-export function InvoiceDownload({ transferId, recipientName }: InvoiceDownloadProps) {
+export function InvoiceDownload({ transferId }: InvoiceDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

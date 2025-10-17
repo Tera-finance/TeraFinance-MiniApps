@@ -1,6 +1,6 @@
 import { apiClient } from "./apiClient";
 import { API_ENDPOINTS } from "@/lib/config";
-import type { ApiResponse, Currency, ExchangeRate, TransferQuote } from "@/lib/types";
+import type { ApiResponse, ExchangeRate, TransferQuote } from "@/lib/types";
 
 interface AllRatesResponse {
   base: string;
