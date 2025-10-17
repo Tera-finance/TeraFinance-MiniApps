@@ -1,19 +1,18 @@
 {
   "accountAssociation": {
-    "header": "REPLACE_WITH_BASE64_HEADER",
-    "payload": "REPLACE_WITH_BASE64_PAYLOAD",
-    "signature": "REPLACE_WITH_BASE64_SIGNATURE"
+    "header": "eyJmaWQiOjEzODYxNjEsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg5YmNBNjNDOTE0RTc4ODQ1MWYwNWYzOWRDMzc1NDg1NjYwMjFFZWY0In0",
+    "payload": "eyJkb21haW4iOiJ0ZXJhLWZpbmFuY2UudmVyY2VsLmFwcCJ9",
+    "signature": "zjF2rZ7+1R0ySCK0aRslqD7oGCQf22rXHYNeatNKsSMgefkZhEC927OR1OTT5V+HPjCcUJ9d2KJVWeoSdG9l1Rs="
   },
   "miniapp": {
     "version": "1",
     "name": "Tera Finance",
-    "subtitle": "Cross-Border Payments",
-    "description": "Fast, affordable, and secure cross-border money transfers powered by Base blockchain. Send money globally with low fees and transparent exchange rates.",
-    "iconUrl": "https://YOUR_DOMAIN/icon-1024.png",
-    "splashImageUrl": "https://YOUR_DOMAIN/splash-200.png",
-    "splashBackgroundColor": "#0a0a0a",
-    "homeUrl": "https://YOUR_DOMAIN",
-    "heroImageUrl": "https://YOUR_DOMAIN/hero-1200x630.png",
+    "subtitle": "TeraFi",
+    "description": "Cross-Border Asset Transfer (Remittance) Combining Use Whatsapp Chatbot",
+    "iconUrl": "https://res.cloudinary.com/dkgphmaft/image/upload/v1760686788/WhatsApp_Image_2025-10-17_at_13.00.42_vw7feq.jpg",
+    "splashImageUrl": "https://res.cloudinary.com/dkgphmaft/image/upload/v1760686788/WhatsApp_Image_2025-10-17_at_13.00.42_vw7feq.jpg",
+    "splashBackgroundColor": "#6200EA",
+    "homeUrl": "https://tera-finance.vercel.app/",
     "tagline": "Global transfers made simple",
     "primaryCategory": "finance",
     "tags": [
@@ -23,17 +22,11 @@
       "transfers",
       "finance"
     ],
-    "screenshotUrls": [
-      "https://YOUR_DOMAIN/screenshot-1.png",
-      "https://YOUR_DOMAIN/screenshot-2.png",
-      "https://YOUR_DOMAIN/screenshot-3.png"
-    ],
-    "webhookUrl": "https://YOUR_DOMAIN/api/farcaster/webhook",
     "requiredChains": [
       "eip155:84532"
     ],
     "ogTitle": "Tera Finance - Cross-Border Payments",
-    "ogDescription": "Fast, affordable, and secure cross-border money transfers powered by Base blockchain",
-    "ogImageUrl": "https://YOUR_DOMAIN/og-image.png"
+    "ogDescription": "Cross-Border Asset Transfer (Remittance) Combining Use Whatsapp Chatbot",
+    "ogImageUrl": "https://res.cloudinary.com/dkgphmaft/image/upload/v1760686788/WhatsApp_Image_2025-10-17_at_13.00.42_vw7feq.jpg"
   }
 }

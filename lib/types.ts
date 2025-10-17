@@ -58,6 +58,26 @@ export interface ConversionPath {
 }
 
 // Transfer API Types
+export interface TransferQuote {
+  sender: {
+    currency: string;
+    amount: number;
+    token: string;
+  };
+  recipient: {
+    currency: string;
+    amount: number;
+    token: string;
+  };
+  exchangeRate: number;
+  fee: {
+    percentage: number;
+    amount: number;
+  };
+  total: number;
+  timestamp: string;
+}
+
 export interface TransferCalculation {
   senderAmount: number;
   senderCurrency: string;
@@ -80,13 +100,15 @@ export interface TransferCalculation {
 }
 
 export interface TransferRequest {
-  paymentMethod: string;
+  whatsappNumber: string;
+  paymentMethod: "WALLET" | "MASTERCARD";
   senderCurrency: string;
   senderAmount: number;
   recipientName: string;
   recipientCurrency: string;
   recipientBank: string;
   recipientAccount: string;
+  recipientWalletAddress?: string;
   cardDetails?: {
     number: string;
     cvc: string;
@@ -97,23 +119,28 @@ export interface TransferRequest {
 export interface TransferInitiation {
   transferId: string;
   status: string;
-  message: string;
-  estimatedCompletion: string;
-  paymentLink?: string;
+  senderAmount: number;
+  senderCurrency: string;
+  recipientAmount: number;
+  recipientCurrency: string;
+  exchangeRate: number;
+  fee: number;
+  total: number;
+  createdAt: string;
 }
 
 export interface TransferStatus {
-  transferId: string;
-  status:
-    | "INITIATED"
-    | "PAYMENT_CONFIRMED"
-    | "MINTED_MOCKADA"
-    | "SWAPPED_TO_RECIPIENT_TOKEN"
-    | "BANK_PAYOUT_INITIATED"
-    | "COMPLETED"
-    | "FAILED";
-  message: string;
-  timestamp: string;
+  id: string;
+  status: "pending" | "paid" | "processing" | "completed" | "failed" | "cancelled";
+  senderAmount: number;
+  senderCurrency: string;
+  recipientAmount: number;
+  recipientCurrency: string;
+  txHash?: string;
+  blockchainTxUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
 }
 
 export interface BlockchainTransaction {
@@ -128,83 +155,62 @@ export interface BlockchainTransaction {
 }
 
 export interface TransferDetails {
-  transferId: string;
-  status: string;
-  paymentMethod: string;
-  sender: {
-    currency: string;
-    amount: number;
-    symbol: string;
-    totalCharged: number;
-  };
-  recipient: {
-    name: string;
-    currency: string;
-    amount: number;
-    symbol: string;
-    bank: string;
-    account: string;
-  };
-  blockchain: {
-    path: string[];
-    mockADAAmount: number;
-    hubToken: string;
-    recipientToken: string;
-    policyIds: Record<string, string>;
-    transactions: BlockchainTransaction[];
-  };
-  fees: {
-    percentage: number;
-    amount: number;
-  };
-  timeline: Array<{
-    status: string;
-    timestamp: string;
-  }>;
+  id: string;
+  userId: number;
+  whatsappNumber: string;
+  status: "pending" | "paid" | "processing" | "completed" | "failed" | "cancelled";
+  paymentMethod: "WALLET" | "MASTERCARD";
+  senderCurrency: string;
+  senderAmount: number;
+  senderTokenAddress?: string;
+  recipientName: string;
+  recipientCurrency: string;
+  recipientExpectedAmount: number;
+  recipientTokenAddress?: string;
+  recipientBank: string;
+  recipientAccount: string;
+  recipientWalletAddress?: string;
+  exchangeRate: number;
+  feePercentage: number;
+  feeAmount: number;
+  totalAmount: number;
+  txHash?: string;
+  blockchainTxUrl?: string;
+  cardEncrypted?: string;
   createdAt: string;
+  updatedAt: string;
   completedAt?: string;
 }
 
 export interface TransferHistoryItem {
-  transferId: string;
-  status: string;
-  paymentMethod: string;
-  sender: {
-    currency: string;
-    amount: number;
-    symbol: string;
-  };
-  recipient: {
-    name: string;
-    currency: string;
-    amount: number;
-    symbol: string;
-    bank: string;
-    account: string;
-  };
-  blockchain: {
-    path: string[];
-    mockADAAmount: number;
-    hubToken: string;
-    recipientToken?: string;
-    txHash: string;
-    cardanoScanUrl: string;
-    policyIds: Record<string, string>;
-  };
-  fees: {
-    percentage: number;
-    amount: number;
-  };
+  id: string;
+  userId: number;
+  whatsappNumber: string;
+  status: "pending" | "paid" | "processing" | "completed" | "failed" | "cancelled";
+  paymentMethod: "WALLET" | "MASTERCARD";
+  senderCurrency: string;
+  senderAmount: number;
+  recipientName: string;
+  recipientCurrency: string;
+  recipientExpectedAmount: number;
+  recipientBank: string;
+  recipientAccount: string;
+  exchangeRate: number;
+  feePercentage: number;
+  feeAmount: number;
+  totalAmount: number;
+  txHash?: string;
+  blockchainTxUrl?: string;
   createdAt: string;
+  updatedAt: string;
   completedAt?: string;
 }
 
 export interface TransferHistory {
   transfers: TransferHistoryItem[];
-  total: number;
+  count: number;
   limit: number;
   offset: number;
-  hasMore: boolean;
 }
 
 // Cardano API Types
@@ -289,4 +295,38 @@ export interface ScriptUtxo {
 export interface TransactionStatus {
   transactionHash: string;
   confirmed: boolean;
+}
+
+// EVM/Base Sepolia Types
+export interface EVMToken {
+  id: number;
+  tokenSymbol: string;
+  tokenName: string;
+  contractAddress: string;
+  decimals: number;
+  network: string;
+  chainId: number;
+  isActive: boolean;
+  deploymentTxHash?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BlockchainInfo {
+  network: string;
+  chainId: number;
+  rpcUrl: string;
+  explorerUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+}
+
+export interface TokenBalance {
+  token: string;
+  balance: string;
+  decimals: number;
+  formattedBalance: string;
 }

@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Check, Loader2, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Send, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { exchangeService } from "@/lib/api/exchangeService";
+import { transferService } from "@/lib/api/transferService";
+import { SUPPORTED_CURRENCIES, config } from "@/lib/config";
+import type { TransferQuote } from "@/lib/types";
 
 type TransferStep = "amount" | "recipient" | "confirm" | "processing" | "success";
 
@@ -16,25 +21,62 @@ interface TransferData {
   toCurrency: string;
   amount: string;
   recipientName: string;
-  recipientPhone: string;
-  recipientCountry: string;
+  recipientBank: string;
+  recipientAccount: string;
+  paymentMethod: "WALLET" | "MASTERCARD";
 }
 
 export default function TransferPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [step, setStep] = useState<TransferStep>("amount");
   const [transferData, setTransferData] = useState<TransferData>({
     fromCurrency: "USD",
-    toCurrency: "EUR",
+    toCurrency: "IDR",
     amount: "",
     recipientName: "",
-    recipientPhone: "",
-    recipientCountry: "France",
+    recipientBank: "",
+    recipientAccount: "",
+    paymentMethod: "WALLET",
   });
 
-  const [estimatedFee, setEstimatedFee] = useState<number>(0);
-  const [estimatedTotal, setEstimatedTotal] = useState<number>(0);
-  const [exchangeRate] = useState<number>(0.92);
+  const [quote, setQuote] = useState<TransferQuote | null>(null);
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [transferId, setTransferId] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch quote when amount changes
+  useEffect(() => {
+    const fetchQuote = async () => {
+      const amount = parseFloat(transferData.amount);
+      if (amount > 0 && transferData.fromCurrency && transferData.toCurrency) {
+        setIsLoadingQuote(true);
+        setError(null);
+        try {
+          const response = await exchangeService.getQuote(
+            transferData.fromCurrency,
+            transferData.toCurrency,
+            amount
+          );
+          if (response.success && response.data) {
+            setQuote(response.data);
+          } else {
+            setError(response.error || "Failed to fetch quote");
+          }
+        } catch (err) {
+          setError("Failed to fetch quote");
+        } finally {
+          setIsLoadingQuote(false);
+        }
+      } else {
+        setQuote(null);
+      }
+    };
+
+    const debounce = setTimeout(fetchQuote, 500);
+    return () => clearTimeout(debounce);
+  }, [transferData.amount, transferData.fromCurrency, transferData.toCurrency]);
 
   const handleNext = () => {
     if (step === "amount") setStep("recipient");
@@ -42,12 +84,81 @@ export default function TransferPage() {
     else if (step === "confirm") handleConfirm();
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!user) {
+      setError("Please login first");
+      router.push("/login");
+      return;
+    }
+
     setStep("processing");
-    // Simulate processing
-    setTimeout(() => {
-      setStep("success");
-    }, 2000);
+    setError(null);
+
+    try {
+      const response = await transferService.initiateTransfer({
+        whatsappNumber: user.whatsappNumber,
+        paymentMethod: transferData.paymentMethod,
+        senderCurrency: transferData.fromCurrency,
+        senderAmount: parseFloat(transferData.amount),
+        recipientName: transferData.recipientName,
+        recipientCurrency: transferData.toCurrency,
+        recipientBank: transferData.recipientBank,
+        recipientAccount: transferData.recipientAccount,
+      });
+
+      if (response.success && response.data) {
+        setTransferId(response.data.transferId);
+        // Poll for status updates
+        pollTransferStatus(response.data.transferId);
+      } else {
+        setError(response.error || "Failed to initiate transfer");
+        setStep("confirm");
+      }
+    } catch (err) {
+      setError("Failed to initiate transfer");
+      setStep("confirm");
+    }
+  };
+
+  const pollTransferStatus = async (id: string) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 5 minutes with 5 second intervals
+
+    const poll = async () => {
+      try {
+        const response = await transferService.getTransferStatus(id);
+        if (response.success && response.data) {
+          const status = response.data.status;
+
+          if (status === "completed") {
+            setTxHash(response.data.txHash || null);
+            setStep("success");
+            return;
+          } else if (status === "failed" || status === "cancelled") {
+            setError("Transfer failed. Please try again.");
+            setStep("confirm");
+            return;
+          }
+
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 5000); // Poll every 5 seconds
+          } else {
+            // Still processing after max attempts
+            setStep("success");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to poll transfer status:", err);
+        // Continue polling even on error
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000);
+        }
+      }
+    };
+
+    poll();
   };
 
   const handleBack = () => {
@@ -55,19 +166,14 @@ export default function TransferPage() {
     else if (step === "confirm") setStep("recipient");
   };
 
-  const updateAmount = (value: string) => {
-    setTransferData({ ...transferData, amount: value });
-    const amt = parseFloat(value) || 0;
-    const fee = amt * 0.015; // 1.5% fee
-    setEstimatedFee(fee);
-    setEstimatedTotal(amt + fee);
-  };
-
   const canProceed = () => {
-    if (step === "amount") return parseFloat(transferData.amount) > 0;
-    if (step === "recipient") return transferData.recipientName && transferData.recipientPhone;
+    if (step === "amount") return parseFloat(transferData.amount) > 0 && quote;
+    if (step === "recipient")
+      return transferData.recipientName && transferData.recipientBank && transferData.recipientAccount;
     return true;
   };
+
+  const allCurrencies = [...SUPPORTED_CURRENCIES.FIAT, ...SUPPORTED_CURRENCIES.CRYPTO];
 
   return (
     <div className="min-h-screen">
@@ -98,6 +204,12 @@ export default function TransferPage() {
           )}
         </div>
 
+        {error && (
+          <div className="mb-4 p-4 glass-dark border border-red-500/30 rounded-lg">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {/* Step 1: Amount */}
           {step === "amount" && (
@@ -112,6 +224,22 @@ export default function TransferPage() {
 
               <div className="space-y-6">
                 <div>
+                  <Label className="text-ice-blue mb-2 block">Payment Method</Label>
+                  <Select
+                    value={transferData.paymentMethod}
+                    onValueChange={(v: "WALLET" | "MASTERCARD") => setTransferData({ ...transferData, paymentMethod: v })}
+                  >
+                    <SelectTrigger className="glass h-12 border-light-blue/30">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WALLET">Crypto Wallet</SelectItem>
+                      <SelectItem value="MASTERCARD">Mastercard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
                   <Label className="text-ice-blue mb-2 block">You send</Label>
                   <div className="flex gap-3">
                     <div className="flex-1">
@@ -119,7 +247,7 @@ export default function TransferPage() {
                         type="number"
                         placeholder="0.00"
                         value={transferData.amount}
-                        onChange={(e) => updateAmount(e.target.value)}
+                        onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
                         className="glass text-2xl h-14 text-ice-blue border-light-blue/30"
                       />
                     </div>
@@ -128,9 +256,9 @@ export default function TransferPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
+                        {allCurrencies.map((curr) => (
+                          <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -148,7 +276,7 @@ export default function TransferPage() {
                     <div className="flex-1">
                       <Input
                         type="text"
-                        value={(parseFloat(transferData.amount) * exchangeRate || 0).toFixed(2)}
+                        value={isLoadingQuote ? "Calculating..." : (quote?.recipient.amount.toFixed(2) || "0.00")}
                         disabled
                         className="glass text-2xl h-14 text-ice-blue border-light-blue/30"
                       />
@@ -158,28 +286,28 @@ export default function TransferPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
+                        {allCurrencies.map((curr) => (
+                          <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                {parseFloat(transferData.amount) > 0 && (
+                {quote && (
                   <div className="glass p-4 space-y-2 animate-fade-in">
                     <div className="flex justify-between text-sm">
                       <span className="text-silver">Exchange rate</span>
-                      <span className="text-ice-blue">1 {transferData.fromCurrency} = {exchangeRate} {transferData.toCurrency}</span>
+                      <span className="text-ice-blue">1 {transferData.fromCurrency} = {quote.exchangeRate.toFixed(4)} {transferData.toCurrency}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-silver">Fee (1.5%)</span>
-                      <span className="text-ice-blue">{estimatedFee.toFixed(2)} {transferData.fromCurrency}</span>
+                      <span className="text-silver">Fee ({quote.fee.percentage}%)</span>
+                      <span className="text-ice-blue">{quote.fee.amount.toFixed(2)} {transferData.fromCurrency}</span>
                     </div>
                     <div className="h-px bg-light-blue/20 my-2" />
                     <div className="flex justify-between font-semibold">
                       <span className="text-ice-blue">Total amount</span>
-                      <span className="text-glow">{estimatedTotal.toFixed(2)} {transferData.fromCurrency}</span>
+                      <span className="text-glow">{quote.total.toFixed(2)} {transferData.fromCurrency}</span>
                     </div>
                   </div>
                 )}
@@ -187,10 +315,10 @@ export default function TransferPage() {
 
               <Button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || isLoadingQuote}
                 className="w-full mt-8 btn-space h-12 text-lg"
               >
-                Continue
+                {isLoadingQuote ? "Loading..." : "Continue"}
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </motion.div>
@@ -219,28 +347,23 @@ export default function TransferPage() {
                 </div>
 
                 <div>
-                  <Label className="text-ice-blue mb-2 block">Phone number</Label>
+                  <Label className="text-ice-blue mb-2 block">Bank name</Label>
                   <Input
-                    placeholder="+33 6 12 34 56 78"
-                    value={transferData.recipientPhone}
-                    onChange={(e) => setTransferData({ ...transferData, recipientPhone: e.target.value })}
+                    placeholder="Bank of America"
+                    value={transferData.recipientBank}
+                    onChange={(e) => setTransferData({ ...transferData, recipientBank: e.target.value })}
                     className="glass h-12 text-ice-blue border-light-blue/30"
                   />
                 </div>
 
                 <div>
-                  <Label className="text-ice-blue mb-2 block">Country</Label>
-                  <Select value={transferData.recipientCountry} onValueChange={(v) => setTransferData({ ...transferData, recipientCountry: v })}>
-                    <SelectTrigger className="glass h-12 border-light-blue/30">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="France">France</SelectItem>
-                      <SelectItem value="Germany">Germany</SelectItem>
-                      <SelectItem value="Spain">Spain</SelectItem>
-                      <SelectItem value="Italy">Italy</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-ice-blue mb-2 block">Account number</Label>
+                  <Input
+                    placeholder="1234567890"
+                    value={transferData.recipientAccount}
+                    onChange={(e) => setTransferData({ ...transferData, recipientAccount: e.target.value })}
+                    className="glass h-12 text-ice-blue border-light-blue/30"
+                  />
                 </div>
               </div>
 
@@ -256,7 +379,7 @@ export default function TransferPage() {
           )}
 
           {/* Step 3: Confirm */}
-          {step === "confirm" && (
+          {step === "confirm" && quote && (
             <motion.div
               key="confirm"
               initial={{ opacity: 0, x: 20 }}
@@ -275,7 +398,7 @@ export default function TransferPage() {
                   <div className="h-px bg-light-blue/20" />
                   <div>
                     <p className="text-sm text-silver mb-1">Recipient gets</p>
-                    <p className="text-2xl font-bold text-ice-blue">{(parseFloat(transferData.amount) * exchangeRate).toFixed(2)} {transferData.toCurrency}</p>
+                    <p className="text-2xl font-bold text-ice-blue">{quote.recipient.amount.toFixed(2)} {transferData.toCurrency}</p>
                   </div>
                 </div>
 
@@ -286,12 +409,16 @@ export default function TransferPage() {
                     <span className="text-ice-blue">{transferData.recipientName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-silver">Phone</span>
-                    <span className="text-ice-blue">{transferData.recipientPhone}</span>
+                    <span className="text-silver">Bank</span>
+                    <span className="text-ice-blue">{transferData.recipientBank}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-silver">Country</span>
-                    <span className="text-ice-blue">{transferData.recipientCountry}</span>
+                    <span className="text-silver">Account</span>
+                    <span className="text-ice-blue">{transferData.recipientAccount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-silver">Payment Method</span>
+                    <span className="text-ice-blue">{transferData.paymentMethod === "WALLET" ? "Crypto Wallet" : "Mastercard"}</span>
                   </div>
                 </div>
 
@@ -303,12 +430,12 @@ export default function TransferPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-silver">Fee</span>
-                    <span className="text-ice-blue">{estimatedFee.toFixed(2)} {transferData.fromCurrency}</span>
+                    <span className="text-ice-blue">{quote.fee.amount.toFixed(2)} {transferData.fromCurrency}</span>
                   </div>
                   <div className="h-px bg-light-blue/20" />
                   <div className="flex justify-between font-semibold text-lg">
                     <span className="text-ice-blue">Total</span>
-                    <span className="text-glow">{estimatedTotal.toFixed(2)} {transferData.fromCurrency}</span>
+                    <span className="text-glow">{quote.total.toFixed(2)} {transferData.fromCurrency}</span>
                   </div>
                 </div>
               </div>
@@ -335,12 +462,12 @@ export default function TransferPage() {
                 <Loader2 className="w-10 h-10 text-light-blue animate-spin" />
               </div>
               <h2 className="text-2xl font-bold text-glow mb-4">Processing your transfer</h2>
-              <p className="text-silver">Please wait while we process your transaction...</p>
+              <p className="text-silver">Please wait while we process your transaction on the blockchain...</p>
             </motion.div>
           )}
 
           {/* Step 5: Success */}
-          {step === "success" && (
+          {step === "success" && quote && (
             <motion.div
               key="success"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -360,12 +487,28 @@ export default function TransferPage() {
                 </div>
                 <div className="flex justify-between mb-3">
                   <span className="text-silver">Recipient gets</span>
-                  <span className="text-ice-blue font-semibold">{(parseFloat(transferData.amount) * exchangeRate).toFixed(2)} {transferData.toCurrency}</span>
+                  <span className="text-ice-blue font-semibold">{quote.recipient.amount.toFixed(2)} {transferData.toCurrency}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-silver">Estimated arrival</span>
-                  <span className="text-green-400 font-semibold">5-10 minutes</span>
-                </div>
+                {transferId && (
+                  <div className="flex justify-between mb-3">
+                    <span className="text-silver">Transfer ID</span>
+                    <span className="text-ice-blue font-mono text-xs">{transferId}</span>
+                  </div>
+                )}
+                {txHash && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-silver">Transaction</span>
+                    <a
+                      href={`${config.explorerUrl}/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-light-blue hover:text-ice-blue flex items-center gap-1"
+                    >
+                      View on Explorer
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4">
@@ -379,7 +522,10 @@ export default function TransferPage() {
                 <Button
                   onClick={() => {
                     setStep("amount");
-                    setTransferData({ ...transferData, amount: "", recipientName: "", recipientPhone: "" });
+                    setTransferData({ ...transferData, amount: "", recipientName: "", recipientBank: "", recipientAccount: "" });
+                    setQuote(null);
+                    setTransferId(null);
+                    setTxHash(null);
                   }}
                   className="flex-1 btn-space h-12"
                 >
