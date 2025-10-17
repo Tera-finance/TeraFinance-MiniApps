@@ -268,7 +268,7 @@ export default function HistoryPage() {
                           rel="noopener noreferrer"
                           className="text-sm text-light-blue hover:text-ice-blue flex items-center gap-1"
                         >
-                          View on Explorer
+                          View on Basescan
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}

@@ -11,8 +11,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { exchangeService } from "@/lib/api/exchangeService";
 import { transferService } from "@/lib/api/transferService";
-import { SUPPORTED_CURRENCIES, config } from "@/lib/config";
+import { blockchainService } from "@/lib/api/blockchainService";
+import { SUPPORTED_CURRENCIES, config, TOKEN_ADDRESSES, CONTRACT_ADDRESSES } from "@/lib/config";
 import type { TransferQuote } from "@/lib/types";
+import { InvoiceDownload } from "@/components/history/InvoiceDownload";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useTokenSwap } from "@/lib/hooks/useTokenSwap";
 
 type TransferStep = "amount" | "recipient" | "confirm" | "processing" | "success";
 
@@ -26,13 +31,23 @@ interface TransferData {
   paymentMethod: "WALLET" | "MASTERCARD";
 }
 
+interface Token {
+  symbol: string;
+  name: string;
+  address: string;
+  decimals: number;
+}
+
 export default function TransferPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { address: walletAddress, isConnected } = useAccount();
+  const { swapTokens, isApproving, isSwapping, error: swapError } = useTokenSwap();
+
   const [step, setStep] = useState<TransferStep>("amount");
   const [transferData, setTransferData] = useState<TransferData>({
-    fromCurrency: "USD",
-    toCurrency: "IDR",
+    fromCurrency: "USDC",
+    toCurrency: "IDRX",
     amount: "",
     recipientName: "",
     recipientBank: "",
@@ -45,6 +60,43 @@ export default function TransferPage() {
   const [transferId, setTransferId] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
+  const [isLoadingTokens, setIsLoadingTokens] = useState(true);
+
+  // Fetch available tokens from database
+  useEffect(() => {
+    const fetchTokens = async () => {
+      try {
+        const response = await blockchainService.getTokens();
+        if (response.success && response.data) {
+          setAvailableTokens(response.data.tokens);
+        }
+      } catch (err) {
+        console.error("Failed to fetch tokens:", err);
+      } finally {
+        setIsLoadingTokens(false);
+      }
+    };
+
+    fetchTokens();
+  }, []);
+
+  // Map currency to token address
+  const getTokenAddress = (currency: string): string | null => {
+    const token = availableTokens.find(t => t.symbol === currency);
+    return token?.address || null;
+  };
+
+  // Get available currencies based on payment method
+  const getAvailableCurrencies = () => {
+    if (transferData.paymentMethod === "WALLET") {
+      // For wallet: show crypto tokens from database
+      return availableTokens.map(t => t.symbol);
+    } else {
+      // For Mastercard: show fiat currencies
+      return SUPPORTED_CURRENCIES.FIAT;
+    }
+  };
 
   // Fetch quote when amount changes
   useEffect(() => {
@@ -91,10 +143,103 @@ export default function TransferPage() {
       return;
     }
 
+    // Check wallet connection for WALLET payment method
+    if (transferData.paymentMethod === "WALLET" && !isConnected) {
+      setError("Please connect your wallet first to use Crypto Wallet payment method");
+      return;
+    }
+
     setStep("processing");
     setError(null);
 
     try {
+      if (transferData.paymentMethod === "WALLET") {
+        // WALLET FLOW: User signs transaction
+        await handleWalletTransfer();
+      } else {
+        // MASTERCARD FLOW: Backend mints and swaps
+        await handleMastercardTransfer();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to process transfer");
+      setStep("confirm");
+    }
+  };
+
+  const handleWalletTransfer = async () => {
+    if (!user || !isConnected || !walletAddress) {
+      throw new Error("Wallet not connected");
+    }
+
+    try {
+      // Get token addresses
+      const tokenInAddress = getTokenAddress(transferData.fromCurrency);
+      const tokenOutAddress = getTokenAddress(transferData.toCurrency);
+
+      if (!tokenInAddress || !tokenOutAddress) {
+        throw new Error("Token addresses not found");
+      }
+
+      // Get token decimals
+      const tokenIn = availableTokens.find(t => t.symbol === transferData.fromCurrency);
+      const tokenOut = availableTokens.find(t => t.symbol === transferData.toCurrency);
+
+      if (!tokenIn || !tokenOut) {
+        throw new Error("Token configuration not found");
+      }
+
+      // Calculate min amount out (2% slippage)
+      const minAmountOut = quote ? (quote.recipient.amount * 0.98).toString() : "0";
+
+      // Execute swap via user's wallet
+      const { swapTxHash } = await swapTokens({
+        tokenInAddress,
+        tokenOutAddress,
+        amountIn: transferData.amount,
+        recipientAddress: walletAddress, // User receives tokens
+        minAmountOut,
+        decimalsIn: tokenIn.decimals,
+        decimalsOut: tokenOut.decimals,
+      });
+
+      // Submit transaction to backend for tracking
+      const response = await transferService.submitWalletTransfer({
+        whatsappNumber: user.whatsappNumber,
+        senderCurrency: transferData.fromCurrency,
+        senderAmount: parseFloat(transferData.amount),
+        recipientName: transferData.recipientName,
+        recipientCurrency: transferData.toCurrency,
+        recipientBank: transferData.recipientBank,
+        recipientAccount: transferData.recipientAccount,
+        txHash: swapTxHash,
+        tokenInAddress,
+        tokenOutAddress,
+      });
+
+      if (response.success && response.data) {
+        setTransferId(response.data.transferId);
+        setTxHash(swapTxHash);
+        // Poll for confirmation
+        pollTransferStatus(response.data.transferId);
+      } else {
+        throw new Error(response.error || "Failed to submit transfer");
+      }
+    } catch (error: any) {
+      console.error("Wallet transfer error:", error);
+      throw new Error(error.message || "Failed to execute wallet transfer");
+    }
+  };
+
+  const handleMastercardTransfer = async () => {
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    try {
+      // Get token addresses for Mastercard (maps fiat to tokens)
+      const tokenInAddress = getTokenAddress(transferData.fromCurrency);
+      const tokenOutAddress = getTokenAddress(transferData.toCurrency);
+
       const response = await transferService.initiateTransfer({
         whatsappNumber: user.whatsappNumber,
         paymentMethod: transferData.paymentMethod,
@@ -111,12 +256,11 @@ export default function TransferPage() {
         // Poll for status updates
         pollTransferStatus(response.data.transferId);
       } else {
-        setError(response.error || "Failed to initiate transfer");
-        setStep("confirm");
+        throw new Error(response.error || "Failed to initiate transfer");
       }
-    } catch (err) {
-      setError("Failed to initiate transfer");
-      setStep("confirm");
+    } catch (error: any) {
+      console.error("Mastercard transfer error:", error);
+      throw new Error(error.message || "Failed to process Mastercard transfer");
     }
   };
 
@@ -130,7 +274,7 @@ export default function TransferPage() {
         if (response.success && response.data) {
           const status = response.data.status;
 
-          if (status === "completed") {
+          if (status === "completed" || status === "paid") {
             setTxHash(response.data.txHash || null);
             setStep("success");
             return;
@@ -167,13 +311,20 @@ export default function TransferPage() {
   };
 
   const canProceed = () => {
-    if (step === "amount") return parseFloat(transferData.amount) > 0 && quote;
+    if (step === "amount") return parseFloat(transferData.amount) > 0 && quote && !isLoadingTokens;
     if (step === "recipient")
       return transferData.recipientName && transferData.recipientBank && transferData.recipientAccount;
     return true;
   };
 
-  const allCurrencies = [...SUPPORTED_CURRENCIES.FIAT, ...SUPPORTED_CURRENCIES.CRYPTO];
+  const availableCurrencies = getAvailableCurrencies();
+
+  // Update swap error display
+  useEffect(() => {
+    if (swapError) {
+      setError(swapError);
+    }
+  }, [swapError]);
 
   return (
     <div className="min-h-screen">
@@ -256,9 +407,13 @@ export default function TransferPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {allCurrencies.map((curr) => (
-                          <SelectItem key={curr} value={curr}>{curr}</SelectItem>
-                        ))}
+                        {isLoadingTokens ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : (
+                          availableCurrencies.map((curr) => (
+                            <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -286,9 +441,13 @@ export default function TransferPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {allCurrencies.map((curr) => (
-                          <SelectItem key={curr} value={curr}>{curr}</SelectItem>
-                        ))}
+                        {isLoadingTokens ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : (
+                          availableCurrencies.map((curr) => (
+                            <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -389,6 +548,15 @@ export default function TransferPage() {
             >
               <h2 className="text-2xl font-bold text-glow mb-6">Confirm transfer</h2>
 
+              {transferData.paymentMethod === "WALLET" && !isConnected && (
+                <div className="mb-6 p-4 glass border border-yellow-500/30 rounded-lg">
+                  <p className="text-yellow-400 text-sm mb-3">Please connect your wallet to continue with Crypto Wallet payment</p>
+                  <div className="flex justify-center">
+                    <ConnectButton />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-6">
                 <div className="glass p-6 space-y-4">
                   <div>
@@ -461,8 +629,22 @@ export default function TransferPage() {
               <div className="w-20 h-20 mx-auto mb-6 rounded-full glass flex items-center justify-center glow-effect">
                 <Loader2 className="w-10 h-10 text-light-blue animate-spin" />
               </div>
-              <h2 className="text-2xl font-bold text-glow mb-4">Processing your transfer</h2>
-              <p className="text-silver">Please wait while we process your transaction on the blockchain...</p>
+              <h2 className="text-2xl font-bold text-glow mb-4">
+                {isApproving && "Approving token..."}
+                {isSwapping && !isApproving && "Executing swap..."}
+                {!isApproving && !isSwapping && "Processing your transfer"}
+              </h2>
+              <p className="text-silver">
+                {transferData.paymentMethod === "WALLET"
+                  ? "Please confirm the transaction in your wallet..."
+                  : "Please wait while we process your transaction on the blockchain..."}
+              </p>
+              {isApproving && (
+                <p className="text-yellow-400 mt-4 text-sm">Step 1 of 2: Approving tokens</p>
+              )}
+              {isSwapping && !isApproving && (
+                <p className="text-light-blue mt-4 text-sm">Step 2 of 2: Swapping tokens</p>
+              )}
             </motion.div>
           )}
 
@@ -482,6 +664,10 @@ export default function TransferPage() {
 
               <div className="glass p-6 mb-8 text-left">
                 <div className="flex justify-between mb-3">
+                  <span className="text-silver">Payment Method</span>
+                  <span className="text-ice-blue font-semibold">{transferData.paymentMethod === "WALLET" ? "Crypto Wallet" : "Mastercard"}</span>
+                </div>
+                <div className="flex justify-between mb-3">
                   <span className="text-silver">Amount sent</span>
                   <span className="text-ice-blue font-semibold">{transferData.amount} {transferData.fromCurrency}</span>
                 </div>
@@ -497,40 +683,47 @@ export default function TransferPage() {
                 )}
                 {txHash && (
                   <div className="flex justify-between items-center">
-                    <span className="text-silver">Transaction</span>
+                    <span className="text-silver">Blockchain Transaction</span>
                     <a
                       href={`${config.explorerUrl}/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-light-blue hover:text-ice-blue flex items-center gap-1"
                     >
-                      View on Explorer
+                      View on Basescan
                       <ExternalLink className="w-4 h-4" />
                     </a>
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => router.push("/history")}
-                  variant="outline"
-                  className="flex-1 glass border-light-blue/30 h-12"
-                >
-                  View history
-                </Button>
-                <Button
-                  onClick={() => {
-                    setStep("amount");
-                    setTransferData({ ...transferData, amount: "", recipientName: "", recipientBank: "", recipientAccount: "" });
-                    setQuote(null);
-                    setTransferId(null);
-                    setTxHash(null);
-                  }}
-                  className="flex-1 btn-space h-12"
-                >
-                  Send again
-                </Button>
+              <div className="space-y-4">
+                {transferId && (
+                  <div className="flex justify-center">
+                    <InvoiceDownload transferId={transferId} recipientName={transferData.recipientName} />
+                  </div>
+                )}
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => router.push("/history")}
+                    variant="outline"
+                    className="flex-1 glass border-light-blue/30 h-12"
+                  >
+                    View history
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setStep("amount");
+                      setTransferData({ ...transferData, amount: "", recipientName: "", recipientBank: "", recipientAccount: "" });
+                      setQuote(null);
+                      setTransferId(null);
+                      setTxHash(null);
+                    }}
+                    className="flex-1 btn-space h-12"
+                  >
+                    Send again
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}

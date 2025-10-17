@@ -92,6 +92,28 @@ class TransferService {
 
     return response.blob();
   }
+
+  /**
+   * Submit wallet transfer with transaction hash (after user signs)
+   */
+  async submitWalletTransfer(data: {
+    whatsappNumber: string;
+    senderCurrency: string;
+    senderAmount: number;
+    recipientName: string;
+    recipientCurrency: string;
+    recipientBank: string;
+    recipientAccount: string;
+    txHash: string;
+    tokenInAddress: string;
+    tokenOutAddress: string;
+  }): Promise<ApiResponse<TransferInitiation>> {
+    return apiClient.post<TransferInitiation>(
+      "/api/transfer/wallet-submit",
+      data,
+      true // Requires authentication
+    );
+  }
 }
 
 export const transferService = new TransferService();
