@@ -69,7 +69,14 @@ export default function TransferPage() {
       try {
         const response = await blockchainService.getTokens();
         if (response.success && response.data) {
-          setAvailableTokens(response.data.tokens);
+          // Map EVMToken to Token interface
+          const mappedTokens: Token[] = response.data.tokens.map(t => ({
+            symbol: t.tokenSymbol,
+            name: t.tokenName,
+            address: t.contractAddress,
+            decimals: t.decimals,
+          }));
+          setAvailableTokens(mappedTokens);
         }
       } catch (err) {
         console.error("Failed to fetch tokens:", err);
