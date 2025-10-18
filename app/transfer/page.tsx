@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Check, Loader2, Send, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Send, ExternalLink, Wallet } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ import { InvoiceDownload } from "@/components/history/InvoiceDownload";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useTokenSwap } from "@/lib/hooks/useTokenSwap";
+import { useSwapQuote } from "@/lib/hooks/useSwapQuote";
+import { formatUnits } from "viem";
 
 type TransferStep = "amount" | "recipient" | "confirm" | "processing" | "success";
 
@@ -29,6 +31,11 @@ interface TransferData {
   recipientBank: string;
   recipientAccount: string;
   paymentMethod: "WALLET" | "MASTERCARD";
+  cardDetails?: {
+    number: string;
+    cvc: string;
+    expiry: string;
+  };
 }
 
 interface Token {
@@ -43,6 +50,7 @@ export default function TransferPage() {
   const { swapTokens, isApproving, isSwapping, error: swapError } = useTokenSwap();
 
   const [step, setStep] = useState<TransferStep>("amount");
+  const [onChainQuoteEnabled, setOnChainQuoteEnabled] = useState(false);
   const [transferData, setTransferData] = useState<TransferData>({
     fromCurrency: "USDC",
     toCurrency: "IDR",
@@ -60,6 +68,50 @@ export default function TransferPage() {
   const [error, setError] = useState<string | null>(null);
   const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
   const [isLoadingTokens, setIsLoadingTokens] = useState(true);
+
+  // Map currency to token address
+  const getTokenAddress = (currency: string): string | null => {
+    const token = availableTokens.find(t => t.symbol === currency);
+    return token?.address || null;
+  };
+
+  // Map fiat currency to token symbol (e.g., IDR -> IDRX, USD -> USDC)
+  const mapFiatToToken = (fiatCurrency: string): string => {
+    const mapping: Record<string, string> = {
+      USD: "USDC",
+      IDR: "IDRX",
+      CNH: "CNHT",
+      EUR: "EUROC",
+      JPY: "JPYC",
+      MXN: "MXNT",
+    };
+    return mapping[fiatCurrency] || fiatCurrency;
+  };
+
+  // Token decimals configuration
+  const tokenDecimals: Record<string, number> = {
+    USDC: 6,
+    IDRX: 18,
+    CNHT: 6,
+    EUROC: 6,
+    JPYC: 18,
+    MXNT: 6,
+  };
+
+  // Get on-chain quote for wallet transfers
+  const tokenInAddress = getTokenAddress(transferData.fromCurrency);
+  const recipientTokenSymbol = mapFiatToToken(transferData.toCurrency);
+  const tokenOutAddress = getTokenAddress(recipientTokenSymbol);
+  const decimalsIn = tokenDecimals[transferData.fromCurrency] || 6;
+  const decimalsOut = tokenDecimals[recipientTokenSymbol] || 6;
+
+  const { quote: swapQuote, isLoading: isLoadingSwapQuote } = useSwapQuote(
+    transferData.paymentMethod === "WALLET" && onChainQuoteEnabled ? tokenInAddress : null,
+    transferData.paymentMethod === "WALLET" && onChainQuoteEnabled ? tokenOutAddress : null,
+    transferData.amount,
+    decimalsIn,
+    0.02 // 2% slippage tolerance
+  );
 
   // Fetch available tokens from database
   useEffect(() => {
@@ -85,12 +137,6 @@ export default function TransferPage() {
     fetchTokens();
   }, []);
 
-  // Map currency to token address
-  const getTokenAddress = (currency: string): string | null => {
-    const token = availableTokens.find(t => t.symbol === currency);
-    return token?.address || null;
-  };
-
   // Get available sender currencies based on payment method
   const getAvailableSenderCurrencies = () => {
     if (transferData.paymentMethod === "WALLET") {
@@ -106,6 +152,11 @@ export default function TransferPage() {
   const getAvailableRecipientCurrencies = () => {
     return SUPPORTED_CURRENCIES.FIAT;
   };
+
+  // Enable on-chain quote when payment method is WALLET
+  useEffect(() => {
+    setOnChainQuoteEnabled(transferData.paymentMethod === "WALLET");
+  }, [transferData.paymentMethod]);
 
   // Fetch quote when amount changes
   useEffect(() => {
@@ -176,64 +227,23 @@ export default function TransferPage() {
     }
   };
 
-  // Map fiat currency to token symbol (e.g., IDR -> IDRX, USD -> USDC)
-  const mapFiatToToken = (fiatCurrency: string): string => {
-    const mapping: Record<string, string> = {
-      USD: "USDC",
-      IDR: "IDRX",
-      CNH: "CNHT",
-      EUR: "EUROC",
-      JPY: "JPYC",
-      MXN: "MXNT",
-    };
-    return mapping[fiatCurrency] || fiatCurrency;
-  };
-
   const handleWalletTransfer = async () => {
     if (!user || !isConnected || !walletAddress) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      // Get token addresses (map fiat to token for recipient)
-      const tokenInAddress = getTokenAddress(transferData.fromCurrency);
-      const recipientToken = mapFiatToToken(transferData.toCurrency);
-      const tokenOutAddress = getTokenAddress(recipientToken);
-
       if (!tokenInAddress || !tokenOutAddress) {
         throw new Error("Token addresses not found");
       }
 
-      // Token decimals configuration (from smart contracts)
-      // MockUSDC.sol: 6 decimals
-      // MockIDRX.sol: 18 decimals
-      // MockCNHT.sol: 6 decimals
-      // MockEUROC.sol: 6 decimals
-      // MockJPYC.sol: 18 decimals
-      // MockMXNT.sol: 6 decimals
-      const tokenDecimals: Record<string, number> = {
-        USDC: 6,
-        IDRX: 18,
-        CNHT: 6,
-        EUROC: 6,
-        JPYC: 18,
-        MXNT: 6,
-      };
+      // Ensure we have an on-chain quote
+      if (!swapQuote) {
+        throw new Error("Unable to fetch on-chain quote. Please try again.");
+      }
 
-      const recipientTokenSymbol = mapFiatToToken(transferData.toCurrency);
-      const decimalsIn = tokenDecimals[transferData.fromCurrency] || 6;
-      const decimalsOut = tokenDecimals[recipientTokenSymbol] || 6;
-
-      // Calculate expected output accounting for different decimals
-      // e.g., 1 USDC (10^6) should equal ~15,000 IDRX (15,000 * 10^18)
-      const senderAmount = parseFloat(transferData.amount);
-      const exchangeRate = quote ? quote.exchangeRate : 1;
-
-      // Expected output in human-readable format
-      const expectedOutputHuman = senderAmount * exchangeRate;
-
-      // Use 10% of expected output as minAmountOut (90% slippage for testnet)
-      const minAmountOut = (expectedOutputHuman * 0.1).toFixed(0);
+      // Use minAmountOut from the on-chain quote (already has slippage applied)
+      const minAmountOut = formatUnits(swapQuote.minAmountOut, decimalsOut);
 
       // Execute swap via user's wallet
       const { swapTxHash } = await swapTokens({
@@ -281,7 +291,7 @@ export default function TransferPage() {
     }
 
     try {
-      const response = await transferService.initiateTransfer({
+      const requestData: any = {
         whatsappNumber: user.whatsappNumber,
         paymentMethod: transferData.paymentMethod,
         senderCurrency: transferData.fromCurrency,
@@ -290,7 +300,14 @@ export default function TransferPage() {
         recipientCurrency: transferData.toCurrency,
         recipientBank: transferData.recipientBank,
         recipientAccount: transferData.recipientAccount,
-      });
+      };
+
+      // Add card details for Mastercard payments
+      if (transferData.paymentMethod === "MASTERCARD" && transferData.cardDetails) {
+        requestData.cardDetails = transferData.cardDetails;
+      }
+
+      const response = await transferService.initiateTransfer(requestData);
 
       if (response.success && response.data) {
         setTransferId(response.data.transferId);
@@ -354,8 +371,24 @@ export default function TransferPage() {
 
   const canProceed = () => {
     if (step === "amount") return parseFloat(transferData.amount) > 0 && quote && !isLoadingTokens;
-    if (step === "recipient")
-      return transferData.recipientName && transferData.recipientBank && transferData.recipientAccount;
+    if (step === "recipient") {
+      const hasRecipientInfo = transferData.recipientName && transferData.recipientBank && transferData.recipientAccount;
+
+      // For Mastercard, also validate card details
+      if (transferData.paymentMethod === "MASTERCARD") {
+        const cardNumber = transferData.cardDetails?.number || "";
+        const cardCvc = transferData.cardDetails?.cvc || "";
+        const cardExpiry = transferData.cardDetails?.expiry || "";
+
+        const isCardNumberValid = /^\d{13,19}$/.test(cardNumber);
+        const isCvcValid = /^\d{3,4}$/.test(cardCvc);
+        const isExpiryValid = /^\d{2}\/\d{2}$/.test(cardExpiry);
+
+        return hasRecipientInfo && isCardNumberValid && isCvcValid && isExpiryValid;
+      }
+
+      return hasRecipientInfo;
+    }
     return true;
   };
 
@@ -412,11 +445,14 @@ export default function TransferPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="glass-dark p-8"
+              className="glass-dark p-8 md:p-10"
             >
-              <h2 className="text-2xl font-bold text-glow mb-6">How much do you want to send?</h2>
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold gradient-text-purple mb-2">Send Money</h2>
+                <p className="text-silver">Fast, secure, and borderless transfers</p>
+              </div>
 
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
                   <Label className="text-ice-blue mb-2 block">Payment Method</Label>
                   <Select
@@ -493,21 +529,36 @@ export default function TransferPage() {
                 </div>
 
                 {quote && (
-                  <div className="glass p-4 space-y-2 animate-fade-in">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-silver">Exchange rate</span>
-                      <span className="text-ice-blue">1 {transferData.fromCurrency} = {quote.exchangeRate.toFixed(4)} {transferData.toCurrency}</span>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass p-6 border-2 border-light-blue/30 space-y-4"
+                  >
+                    <div className="flex items-center justify-between pb-4 border-b border-light-blue/20">
+                      <div>
+                        <p className="text-sm text-silver mb-1">Exchange Rate</p>
+                        <p className="text-lg font-bold text-ice-blue">
+                          1 {transferData.fromCurrency} = {quote.exchangeRate.toFixed(4)} {transferData.toCurrency}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full glass flex items-center justify-center glow-cyan">
+                        <svg className="w-5 h-5 text-light-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-silver">Fee ({quote.fee.percentage}%)</span>
-                      <span className="text-ice-blue">{quote.fee.amount.toFixed(2)} {transferData.fromCurrency}</span>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-silver">Platform Fee ({quote.fee.percentage}%)</span>
+                        <span className="text-ice-blue font-semibold">{quote.fee.amount.toFixed(2)} {transferData.fromCurrency}</span>
+                      </div>
+                      <div className="h-px bg-light-blue/20" />
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="text-ice-blue font-semibold text-lg">Total Amount</span>
+                        <span className="text-2xl font-bold gradient-text-purple">{quote.total.toFixed(2)} {transferData.fromCurrency}</span>
+                      </div>
                     </div>
-                    <div className="h-px bg-light-blue/20 my-2" />
-                    <div className="flex justify-between font-semibold">
-                      <span className="text-ice-blue">Total amount</span>
-                      <span className="text-glow">{quote.total.toFixed(2)} {transferData.fromCurrency}</span>
-                    </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -563,6 +614,84 @@ export default function TransferPage() {
                     className="glass h-12 text-ice-blue border-light-blue/30"
                   />
                 </div>
+
+                {/* Card Details - Only show for Mastercard */}
+                {transferData.paymentMethod === "MASTERCARD" && (
+                  <>
+                    <div className="h-px bg-light-blue/20 my-4" />
+                    <h3 className="text-lg font-semibold text-ice-blue mb-4">💳 Card Details</h3>
+
+                    <div>
+                      <Label className="text-ice-blue mb-2 block">Card Number</Label>
+                      <Input
+                        placeholder="1234 5678 9012 3456"
+                        value={transferData.cardDetails?.number || ""}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\s/g, "");
+                          setTransferData({
+                            ...transferData,
+                            cardDetails: {
+                              number: value,
+                              cvc: transferData.cardDetails?.cvc || "",
+                              expiry: transferData.cardDetails?.expiry || "",
+                            },
+                          });
+                        }}
+                        maxLength={19}
+                        className="glass h-12 text-ice-blue border-light-blue/30"
+                      />
+                      <p className="text-xs text-silver mt-1">Enter 13-19 digits</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-ice-blue mb-2 block">Expiry Date</Label>
+                        <Input
+                          placeholder="MM/YY"
+                          value={transferData.cardDetails?.expiry || ""}
+                          onChange={(e) => {
+                            let value = e.target.value.replace(/\D/g, "");
+                            if (value.length >= 2) {
+                              value = value.slice(0, 2) + "/" + value.slice(2, 4);
+                            }
+                            setTransferData({
+                              ...transferData,
+                              cardDetails: {
+                                number: transferData.cardDetails?.number || "",
+                                cvc: transferData.cardDetails?.cvc || "",
+                                expiry: value,
+                              },
+                            });
+                          }}
+                          maxLength={5}
+                          className="glass h-12 text-ice-blue border-light-blue/30"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-ice-blue mb-2 block">CVC</Label>
+                        <Input
+                          type="password"
+                          placeholder="123"
+                          value={transferData.cardDetails?.cvc || ""}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setTransferData({
+                              ...transferData,
+                              cardDetails: {
+                                number: transferData.cardDetails?.number || "",
+                                cvc: value,
+                                expiry: transferData.cardDetails?.expiry || "",
+                              },
+                            });
+                          }}
+                          maxLength={4}
+                          className="glass h-12 text-ice-blue border-light-blue/30"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <Button
@@ -693,75 +822,146 @@ export default function TransferPage() {
               key="success"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="glass-dark p-12 text-center"
+              className="glass-dark p-12 text-center relative overflow-hidden"
             >
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/20 flex items-center justify-center glow-cyan animate-pulse-blue">
-                <Check className="w-10 h-10 text-green-400" />
-              </div>
-              <h2 className="text-3xl font-bold gradient-text-purple mb-4">Transfer successful!</h2>
-              <p className="text-silver mb-8">Your money is on its way to {transferData.recipientName}</p>
+              {/* Animated background effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-light-blue/5 animate-pulse" />
 
-              <div className="glass p-6 mb-8 text-left">
-                <div className="flex justify-between mb-3">
-                  <span className="text-silver">Payment Method</span>
-                  <span className="text-ice-blue font-semibold">{transferData.paymentMethod === "WALLET" ? "Crypto Wallet" : "Mastercard"}</span>
-                </div>
-                <div className="flex justify-between mb-3">
-                  <span className="text-silver">Amount sent</span>
-                  <span className="text-ice-blue font-semibold">{transferData.amount} {transferData.fromCurrency}</span>
-                </div>
-                <div className="flex justify-between mb-3">
-                  <span className="text-silver">Recipient gets</span>
-                  <span className="text-ice-blue font-semibold">{quote.recipient.amount.toFixed(2)} {transferData.toCurrency}</span>
-                </div>
-                {transferId && (
-                  <div className="flex justify-between mb-3">
-                    <span className="text-silver">Transfer ID</span>
-                    <span className="text-ice-blue font-mono text-xs">{transferId}</span>
+              <div className="relative z-10">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500/30 to-green-400/30 flex items-center justify-center glow-cyan border-4 border-green-400/50"
+                >
+                  <Check className="w-12 h-12 text-green-400" />
+                </motion.div>
+
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-4xl font-bold gradient-text-purple mb-3"
+                >
+                  Transfer Successful! 🎉
+                </motion.h2>
+
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-lg text-ice-blue mb-8"
+                >
+                  Your money is on its way to <span className="font-semibold text-glow">{transferData.recipientName}</span>
+                </motion.p>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="glass p-8 mb-8 text-left border-2 border-light-blue/30 space-y-4"
+                >
+                  <div className="pb-4 border-b border-light-blue/20">
+                    <h3 className="text-xl font-bold text-ice-blue mb-4">Transaction Summary</h3>
                   </div>
-                )}
-                {txHash && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-silver">Blockchain Transaction</span>
-                    <a
-                      href={`${config.explorerUrl}/tx/${txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-light-blue hover:text-ice-blue flex items-center gap-1"
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 glass rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full glass flex items-center justify-center">
+                          {transferData.paymentMethod === "WALLET" ? (
+                            <Wallet className="w-5 h-5 text-light-blue" />
+                          ) : (
+                            <svg className="w-5 h-5 text-light-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-silver">Payment Method</p>
+                          <p className="font-semibold text-ice-blue">{transferData.paymentMethod === "WALLET" ? "Crypto Wallet" : "Mastercard"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 glass rounded-lg">
+                        <p className="text-sm text-silver mb-1">You Sent</p>
+                        <p className="text-2xl font-bold gradient-text-purple">{transferData.amount}</p>
+                        <p className="text-sm text-ice-blue">{transferData.fromCurrency}</p>
+                      </div>
+                      <div className="p-4 glass rounded-lg">
+                        <p className="text-sm text-silver mb-1">They Receive</p>
+                        <p className="text-2xl font-bold text-glow">{quote.recipient.amount.toFixed(2)}</p>
+                        <p className="text-sm text-ice-blue">{transferData.toCurrency}</p>
+                      </div>
+                    </div>
+
+                    {transferId && (
+                      <div className="p-4 glass rounded-lg">
+                        <p className="text-sm text-silver mb-2">Transfer ID</p>
+                        <p className="text-ice-blue font-mono text-sm break-all">{transferId}</p>
+                      </div>
+                    )}
+
+                    {txHash && (
+                      <a
+                        href={`${config.explorerUrl}/tx/${txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-4 glass rounded-lg hover:border-light-blue/50 border-2 border-transparent transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full glass flex items-center justify-center glow-cyan">
+                            <ExternalLink className="w-5 h-5 text-light-blue" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-silver">Blockchain Transaction</p>
+                            <p className="text-ice-blue font-semibold group-hover:text-glow transition-colors">View on BaseScan</p>
+                          </div>
+                        </div>
+                        <svg className="w-5 h-5 text-silver group-hover:text-ice-blue transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                </motion.div>
+
+                <div className="space-y-4">
+                  {transferId && (
+                    <div className="flex justify-center">
+                      <InvoiceDownload transferId={transferId} recipientName={transferData.recipientName} />
+                    </div>
+                  )}
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={() => router.push("/history")}
+                      variant="outline"
+                      className="flex-1 glass border-light-blue/30 h-12"
                     >
-                      View on Basescan
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                      View history
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setStep("amount");
+                        setTransferData({
+                          ...transferData,
+                          amount: "",
+                          recipientName: "",
+                          recipientBank: "",
+                          recipientAccount: "",
+                          cardDetails: undefined,
+                        });
+                        setQuote(null);
+                        setTransferId(null);
+                        setTxHash(null);
+                      }}
+                      className="flex-1 btn-space h-12"
+                    >
+                      Send again
+                    </Button>
                   </div>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                {transferId && (
-                  <div className="flex justify-center">
-                    <InvoiceDownload transferId={transferId} recipientName={transferData.recipientName} />
-                  </div>
-                )}
-                <div className="flex gap-4">
-                  <Button
-                    onClick={() => router.push("/history")}
-                    variant="outline"
-                    className="flex-1 glass border-light-blue/30 h-12"
-                  >
-                    View history
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setStep("amount");
-                      setTransferData({ ...transferData, amount: "", recipientName: "", recipientBank: "", recipientAccount: "" });
-                      setQuote(null);
-                      setTransferId(null);
-                      setTxHash(null);
-                    }}
-                    className="flex-1 btn-space h-12"
-                  >
-                    Send again
-                  </Button>
                 </div>
               </div>
             </motion.div>
