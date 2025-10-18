@@ -60,7 +60,7 @@ export function useTokenBalances(tokenAddresses: { symbol: string; address: stri
             return {
               symbol: token.symbol,
               address: token.address,
-              balance: 0n,
+              balance: BigInt(0),
               balanceFormatted: "0",
               decimals: 18,
             };
