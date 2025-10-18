@@ -293,7 +293,7 @@ export default function TransferPage() {
     try {
       const requestData: {
         whatsappNumber: string;
-        paymentMethod: string;
+        paymentMethod: "WALLET" | "MASTERCARD";
         senderCurrency: string;
         senderAmount: number;
         recipientName: string;
