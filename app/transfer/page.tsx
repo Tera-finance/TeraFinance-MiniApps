@@ -105,7 +105,7 @@ export default function TransferPage() {
   const decimalsIn = tokenDecimals[transferData.fromCurrency] || 6;
   const decimalsOut = tokenDecimals[recipientTokenSymbol] || 6;
 
-  const { quote: swapQuote, isLoading: isLoadingSwapQuote } = useSwapQuote(
+  const { quote: swapQuote } = useSwapQuote(
     transferData.paymentMethod === "WALLET" && onChainQuoteEnabled ? tokenInAddress : null,
     transferData.paymentMethod === "WALLET" && onChainQuoteEnabled ? tokenOutAddress : null,
     transferData.amount,
@@ -291,7 +291,21 @@ export default function TransferPage() {
     }
 
     try {
-      const requestData: any = {
+      const requestData: {
+        whatsappNumber: string;
+        paymentMethod: string;
+        senderCurrency: string;
+        senderAmount: number;
+        recipientName: string;
+        recipientCurrency: string;
+        recipientBank: string;
+        recipientAccount: string;
+        cardDetails?: {
+          number: string;
+          cvc: string;
+          expiry: string;
+        };
+      } = {
         whatsappNumber: user.whatsappNumber,
         paymentMethod: transferData.paymentMethod,
         senderCurrency: transferData.fromCurrency,
